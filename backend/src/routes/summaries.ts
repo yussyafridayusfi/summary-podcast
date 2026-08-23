@@ -40,7 +40,9 @@ summariesRouter.post("/", async (req, res) => {
     podcastName: body.podcastName,
     sessionTitle: body.sessionTitle,
     url: body.url ?? null,
+    guest: body.guest ?? null,
     content: body.content ?? "",
+    summaryGeneratorText: body.summaryGeneratorText ?? "",
   });
   res.status(201).json(created);
 });
@@ -67,7 +69,11 @@ summariesRouter.put("/:id", async (req, res) => {
     podcastName: body.podcastName,
     sessionTitle: body.sessionTitle,
     url: body.url ?? null,
+    guest: body.guest ?? null,
     content: body.content ?? "",
+    ...(body.summaryGeneratorText !== undefined
+      ? { summaryGeneratorText: body.summaryGeneratorText }
+      : {}),
   });
   if (!updated) {
     res.status(404).json({ error: "not found" });

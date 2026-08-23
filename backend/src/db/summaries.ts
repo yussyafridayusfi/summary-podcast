@@ -8,7 +8,9 @@ export interface Summary {
   podcastName: string;
   sessionTitle: string;
   url: string | null;
+  guest: string | null;
   content: string;
+  summaryGeneratorText: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -17,14 +19,18 @@ export interface CreateSummaryInput {
   podcastName: string;
   sessionTitle: string;
   url?: string | null;
+  guest?: string | null;
   content?: string;
+  summaryGeneratorText?: string;
 }
 
 export interface UpdateSummaryInput {
   podcastName?: string;
   sessionTitle?: string;
   url?: string | null;
+  guest?: string | null;
   content?: string;
+  summaryGeneratorText?: string;
 }
 
 function toSummary(row: SummaryRow): Summary {
@@ -34,7 +40,9 @@ function toSummary(row: SummaryRow): Summary {
     podcastName: row.podcastName,
     sessionTitle: row.sessionTitle,
     url: row.url,
+    guest: row.guest,
     content: row.content,
+    summaryGeneratorText: row.summaryGeneratorText,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -71,7 +79,9 @@ export async function createSummary(
       podcastName: input.podcastName,
       sessionTitle: input.sessionTitle,
       url: input.url ?? null,
+      guest: input.guest ?? null,
       content: input.content ?? "",
+      summaryGeneratorText: input.summaryGeneratorText ?? "",
     })
     .returning();
   return toSummary(row);
@@ -86,7 +96,10 @@ export async function updateSummary(
   if (input.podcastName !== undefined) patch.podcastName = input.podcastName;
   if (input.sessionTitle !== undefined) patch.sessionTitle = input.sessionTitle;
   if (input.url !== undefined) patch.url = input.url;
+  if (input.guest !== undefined) patch.guest = input.guest;
   if (input.content !== undefined) patch.content = input.content;
+  if (input.summaryGeneratorText !== undefined)
+    patch.summaryGeneratorText = input.summaryGeneratorText;
 
   const [row] = await db
     .update(summaries)

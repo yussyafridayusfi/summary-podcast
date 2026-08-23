@@ -6,7 +6,9 @@ export const summaries = pgTable("summaries", {
   podcastName: text("podcast_name").notNull(),
   sessionTitle: text("session_title").notNull(),
   url: text("url"),
+  guest: text("guest"),
   content: text("content").notNull().default(""),
+  summaryGeneratorText: text("summary_generator_text").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

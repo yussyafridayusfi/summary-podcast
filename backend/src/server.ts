@@ -2,6 +2,7 @@ import "dotenv/config";
 import cors from "cors";
 import express from "express";
 import morgan from "morgan";
+import { aiRouter } from "./routes/ai.ts";
 import { summariesRouter } from "./routes/summaries.ts";
 
 const app = express();
@@ -14,6 +15,7 @@ app.use(morgan("dev"));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/api/summaries", summariesRouter);
+app.use("/api/ai", aiRouter);
 
 app.use(
   (
