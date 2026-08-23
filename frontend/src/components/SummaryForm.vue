@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { reactive, watch } from "vue";
+import { reactive, watch, ref } from "vue";
 import RichEditor from "./RichEditor.vue";
+import ImageScanner from "./ImageScanner.vue";
 import type { Summary, SummaryInput } from "../api/client";
 
 const props = defineProps<{
@@ -21,6 +22,9 @@ const form = reactive({
   url: "",
   content: "",
 });
+
+const showScanner = ref(false);
+const inputMode = ref<'write' | 'scan'>('write');
 
 watch(
   () => props.initial,
@@ -44,6 +48,22 @@ function onSubmit() {
     content: form.content,
   };
   emit("submit", input);
+}
+
+/**
+ * Handle text extracted from OCR scanner
+ */
+function onTextExtracted(text: string) {
+  // Append extracted text to existing content
+  if (form.content && !form.content.endsWith('\n')) {
+    form.content += '\n\n';
+  }
+  form.content += text;
+  // Close scanner after extraction
+  setTimeout(() => {
+    showScanner.value = false;
+    inputMode.value = 'write';
+  }, 500);
 }
 </script>
 
@@ -125,20 +145,64 @@ function onSubmit() {
       </div>
     </fieldset>
 
-    <!-- Notes -->
+    <!-- Notes Section -->
     <div>
-      <div class="mb-2 flex items-baseline justify-between gap-4">
+      <div class="mb-4 flex items-baseline justify-between gap-4">
         <span id="notes-label" class="label mb-0">Notes</span>
+        <div class="flex gap-2">
+          <button
+            type="button"
+            :class="[
+              'text-xs font-medium px-3 py-1 rounded-lg transition-colors',
+              inputMode === 'write'
+                ? 'bg-accent text-white'
+                : 'bg-ink-faint/10 text-ink-faint hover:text-ink hover:bg-ink-faint/20'
+            ]"
+            @click="inputMode = 'write'; showScanner = false"
+          >
+            ✏️ Write
+          </button>
+          <button
+            type="button"
+            :class="[
+              'text-xs font-medium px-3 py-1 rounded-lg transition-colors',
+              inputMode === 'scan'
+                ? 'bg-accent text-white'
+                : 'bg-ink-faint/10 text-ink-faint hover:text-ink hover:bg-ink-faint/20'
+            ]"
+            @click="inputMode = 'scan'; showScanner = !showScanner"
+          >
+            📸 Scan
+          </button>
+        </div>
+      </div>
+
+      <!-- Write Mode -->
+      <div v-show="inputMode === 'write'" class="space-y-3">
         <span class="hidden text-xs text-ink-faint sm:inline">
           Bold, lists, headings, quotes and code all work
         </span>
+        <RichEditor
+          v-model="form.content"
+          placeholder="Write your summary here…"
+          role="group"
+          aria-labelledby="notes-label"
+        />
       </div>
-      <RichEditor
-        v-model="form.content"
-        placeholder="Write your summary here…"
-        role="group"
-        aria-labelledby="notes-label"
-      />
+
+      <!-- Scan Mode -->
+      <div v-show="inputMode === 'scan'" class="space-y-4">
+        <ImageScanner
+          :on-text-extracted="onTextExtracted"
+          @text-extracted="onTextExtracted"
+        />
+        <div v-if="form.content" class="p-4 rounded-lg bg-accent-soft/20 border border-accent-soft">
+          <p class="text-sm text-ink-muted mb-3">Current notes preview:</p>
+          <div class="text-sm text-ink font-mono whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
+            {{ form.content }}
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Actions -->

@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { getOrCreateUserId } from "./api/user";
+import NavigationBar from "./components/NavigationBar.vue";
 
 const userId = ref(getOrCreateUserId());
 </script>
 
 <template>
-  <div class="min-h-screen bg-paper text-ink">
-    <header class="border-b border-line-soft">
+  <div class="min-h-screen bg-paper text-ink flex flex-col">
+    <!-- Main Header -->
+    <header class="border-b border-line-soft bg-paper">
       <div
         class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 sm:px-8 sm:py-5"
       >
@@ -25,7 +27,7 @@ const userId = ref(getOrCreateUserId());
             </svg>
           </span>
           <span class="font-serif text-lg tracking-tight text-ink sm:text-xl">
-            Podcast&nbsp;Notes
+            Summary&nbsp;Hub
           </span>
         </router-link>
 
@@ -39,7 +41,11 @@ const userId = ref(getOrCreateUserId());
       </div>
     </header>
 
-    <main class="mx-auto max-w-6xl px-5 pt-8 pb-20 sm:px-8 sm:pt-12">
+    <!-- Navigation Bar with Tabs -->
+    <NavigationBar />
+
+    <!-- Main Content -->
+    <main class="flex-1 mx-auto w-full max-w-6xl px-5 pt-8 pb-20 sm:px-8 sm:pt-12">
       <router-view />
     </main>
   </div>
