@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
-import { api, type SummaryInput } from "../api/client";
-import SummaryForm from "../components/SummaryForm.vue";
+import { foodApi, type FoodReviewInput } from "../api/client";
+import FoodReviewForm from "../components/FoodReviewForm.vue";
 
 const router = useRouter();
 const submitting = ref(false);
 const error = ref<string | null>(null);
 
-async function onSubmit(input: SummaryInput) {
+async function onSubmit(input: FoodReviewInput) {
   submitting.value = true;
   error.value = null;
   try {
-    const created = await api.create(input);
-    router.push({ name: "detail", params: { id: created.id } });
+    const created = await foodApi.create(input);
+    router.push({ name: "food-detail", params: { id: created.id } });
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
@@ -22,7 +22,7 @@ async function onSubmit(input: SummaryInput) {
 }
 
 function onCancel() {
-  router.push({ name: "list" });
+  router.push({ name: "food-list" });
 }
 </script>
 
@@ -30,15 +30,15 @@ function onCancel() {
   <section class="mx-auto max-w-4xl">
     <!-- Breadcrumb -->
     <nav class="mb-4 flex items-center gap-2 text-sm text-slate-500">
-      <router-link to="/" class="hover:text-indigo-600">My summaries</router-link>
-      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <router-link to="/food" class="hover:text-indigo-600">Food reviews</router-link>
+      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
         <path
           fill-rule="evenodd"
           d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
           clip-rule="evenodd"
         />
       </svg>
-      <span class="font-medium text-slate-700">New summary</span>
+      <span class="font-medium text-slate-700">New review</span>
     </nav>
 
     <!-- Error -->
@@ -56,7 +56,7 @@ function onCancel() {
       <span>{{ error }}</span>
     </div>
 
-    <SummaryForm
+    <FoodReviewForm
       :initial="null"
       :submitting="submitting"
       @submit="onSubmit"

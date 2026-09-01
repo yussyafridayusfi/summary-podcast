@@ -5,10 +5,12 @@ import {
   api,
   type AiStatus,
   type ExportFormat,
+  type PodcastGenerateContext,
   type Summary,
 } from "../api/client";
 import RichEditor from "../components/RichEditor.vue";
 import ExportModal from "../components/ExportModal.vue";
+import { firstImageInHtml } from "../lib/image";
 
 const props = defineProps<{ id: string }>();
 
@@ -31,6 +33,7 @@ const form = reactive({
   guest: "",
   url: "",
   content: "",
+  imageDataUri: null as string | null,
 });
 
 /** The generated summary, editable before it's saved or exported. */
@@ -47,6 +50,7 @@ async function load() {
     form.guest = s.guest ?? "";
     form.url = s.url ?? "";
     form.content = s.content;
+    form.imageDataUri = s.imageDataUri;
     generated.value = s.summaryGeneratorText;
   } catch (e) {
     error.value = (e as Error).message;
@@ -63,12 +67,16 @@ async function loadStatus() {
   }
 }
 
-const context = computed(() => ({
+// There is no photo field on a summary, so an image dropped into the notes is
+// the only way to get one onto the sketchnote.
+const context = computed<PodcastGenerateContext>(() => ({
+  type: "podcast",
   podcastName: form.podcastName,
   sessionTitle: form.sessionTitle,
   guest: form.guest || null,
   url: form.url || null,
   content: form.content,
+  imageDataUri: form.imageDataUri ?? firstImageInHtml(form.content),
 }));
 
 const canGenerate = computed(
@@ -97,6 +105,7 @@ const dirty = computed(() => {
     form.guest !== (s.guest ?? "") ||
     form.url !== (s.url ?? "") ||
     form.content !== s.content ||
+    form.imageDataUri !== s.imageDataUri ||
     generated.value !== s.summaryGeneratorText
   );
 });
@@ -127,6 +136,7 @@ async function persist() {
       guest: form.guest.trim() ? form.guest.trim() : null,
       url: form.url.trim() ? form.url.trim() : null,
       content: form.content,
+      imageDataUri: form.imageDataUri,
       summaryGeneratorText: generated.value,
     });
     summary.value = updated;
@@ -154,24 +164,24 @@ onMounted(() => {
 <template>
   <section class="mx-auto max-w-4xl">
     <!-- Breadcrumb -->
-    <nav class="mb-8 flex items-center gap-2 overflow-hidden text-xs tracking-wide text-ink-faint">
-      <router-link to="/" class="flex-none rounded transition-colors duration-150 hover:text-accent">
+    <nav class="mb-8 flex items-center gap-2 overflow-hidden text-xs tracking-wide text-slate-400">
+      <router-link to="/" class="flex-none rounded transition-colors duration-150 hover:text-indigo-600">
         My summaries
       </router-link>
       <span aria-hidden="true">/</span>
       <router-link
         v-if="summary"
         :to="{ name: 'detail', params: { id } }"
-        class="max-w-[14rem] truncate rounded transition-colors duration-150 hover:text-accent"
+        class="max-w-[14rem] truncate rounded transition-colors duration-150 hover:text-indigo-600"
       >
         {{ summary.sessionTitle }}
       </router-link>
       <span v-if="summary" aria-hidden="true">/</span>
-      <span class="flex-none text-ink-muted">Generate</span>
+      <span class="flex-none text-slate-500">Generate</span>
     </nav>
 
     <!-- Error -->
-    <div v-if="error" class="notice-danger mb-6">
+    <div v-if="error" class="mb-6 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
       <svg class="mt-0.5 h-4 w-4 flex-none" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
         <path
           fill-rule="evenodd"
@@ -186,24 +196,24 @@ onMounted(() => {
     <div v-if="loading" class="animate-pulse space-y-8 py-4" aria-busy="true">
       <span class="sr-only">Loading…</span>
       <div class="space-y-3">
-        <div class="h-7 w-56 rounded-full bg-paper-dim"></div>
-        <div class="h-3 w-72 rounded-full bg-paper-dim"></div>
+        <div class="h-7 w-56 rounded-full bg-slate-100"></div>
+        <div class="h-3 w-72 rounded-full bg-slate-100"></div>
       </div>
       <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        <div class="h-11 rounded-xl bg-paper-dim"></div>
-        <div class="h-11 rounded-xl bg-paper-dim"></div>
-        <div class="h-11 rounded-xl bg-paper-dim"></div>
-        <div class="h-11 rounded-xl bg-paper-dim"></div>
+        <div class="h-11 rounded-xl bg-slate-100"></div>
+        <div class="h-11 rounded-xl bg-slate-100"></div>
+        <div class="h-11 rounded-xl bg-slate-100"></div>
+        <div class="h-11 rounded-xl bg-slate-100"></div>
       </div>
-      <div class="h-48 rounded-xl bg-paper-dim"></div>
+      <div class="h-48 rounded-xl bg-slate-100"></div>
     </div>
 
     <div v-else-if="summary" class="space-y-6">
       <!-- Source fields -->
       <section>
         <div>
-          <h1 class="font-serif text-display text-ink">Generate summary</h1>
-          <p class="mt-2 text-sm text-ink-muted">
+          <h1 class="text-xl font-semibold text-slate-900">Generate summary</h1>
+          <p class="mt-2 text-sm text-slate-500">
             Edit any detail below, then generate. Changes are saved with the summary.
           </p>
         </div>
@@ -211,56 +221,54 @@ onMounted(() => {
         <div class="mt-5 space-y-5">
           <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
             <div>
-              <label for="g-podcast" class="label">
-                Podcast name <span class="label-hint" aria-hidden="true">required</span>
+              <label for="g-podcast" class="mb-1.5 block text-sm font-medium text-slate-700">
+                Podcast name <span class="text-rose-500">*</span>
               </label>
               <input
                 id="g-podcast"
                 v-model="form.podcastName"
-                class="field"
+                class="block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
               />
             </div>
             <div>
-              <label for="g-session" class="label">
-                Session title <span class="label-hint" aria-hidden="true">required</span>
+              <label for="g-session" class="mb-1.5 block text-sm font-medium text-slate-700">
+                Session title <span class="text-rose-500">*</span>
               </label>
               <input
                 id="g-session"
                 v-model="form.sessionTitle"
-                class="field"
+                class="block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
               />
             </div>
             <div>
-              <label for="g-guest" class="label">
-                Guest <span class="label-hint">optional</span>
+              <label for="g-guest" class="mb-1.5 block text-sm font-medium text-slate-700">
+                Guest <span class="text-xs font-normal text-slate-400">(optional)</span>
               </label>
               <input
                 id="g-guest"
                 v-model="form.guest"
                 placeholder="e.g. Dr. Matt Walker"
-                class="field"
+                class="block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
               />
             </div>
             <div>
-              <label for="g-url" class="label">
-                URL <span class="label-hint">optional</span>
+              <label for="g-url" class="mb-1.5 block text-sm font-medium text-slate-700">
+                URL <span class="text-xs font-normal text-slate-400">(optional)</span>
               </label>
               <input
                 id="g-url"
                 v-model="form.url"
                 type="url"
                 placeholder="https://example.com/episode-1"
-                class="field"
+                class="block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
               />
             </div>
           </div>
 
           <div>
-            <label class="label">
+            <label class="mb-1.5 block text-sm font-medium text-slate-700">
               Notes
-              <span class="label-hint">
-                (the raw material the AI summarises)
-              </span>
+              <span class="text-xs font-normal text-slate-400">(the raw material the AI summarises)</span>
             </label>
             <RichEditor v-model="form.content" min-height="12rem" />
           </div>
@@ -268,20 +276,20 @@ onMounted(() => {
 
         <!-- Generate -->
         <div
-          class="mt-8 flex flex-col gap-4 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between"
+          class="mt-8 flex flex-col gap-4 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between"
         >
           <div class="min-w-0">
-            <p v-if="aiStatus && !aiStatus.textReady" class="text-xs text-danger">
+            <p v-if="aiStatus && !aiStatus.textReady" class="text-xs text-rose-700">
               No AI text provider is configured — add a key to
-              <code class="rounded bg-danger-soft px-1">backend/.env</code> to enable this.
+              <code class="rounded bg-rose-50 px-1">backend/.env</code> to enable this.
             </p>
-            <p v-else-if="aiStatus" class="text-xs text-ink-muted">
+            <p v-else-if="aiStatus" class="text-xs text-slate-500">
               Using {{ aiStatus.provider }} · {{ aiStatus.model }}
             </p>
-            <p v-if="dirty" class="mt-1 text-xs font-medium text-danger">
+            <p v-if="dirty" class="mt-1 text-xs font-medium text-rose-700">
               Unsaved changes
             </p>
-            <p v-else-if="savedAt" class="mt-1 text-xs text-accent">
+            <p v-else-if="savedAt" class="mt-1 text-xs text-indigo-600">
               Saved {{ savedAt }}
             </p>
           </div>
@@ -292,7 +300,7 @@ onMounted(() => {
             <button
               type="button"
               :disabled="saving || !dirty"
-              class="btn btn-quiet"
+              class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               @click="save"
             >
               {{ saving ? "Saving…" : "Save changes" }}
@@ -301,7 +309,7 @@ onMounted(() => {
             <button
               type="button"
               :disabled="generating || !canGenerate"
-              class="btn btn-primary"
+              class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
               @click="generate"
             >
               <svg
@@ -327,25 +335,25 @@ onMounted(() => {
       <!-- Generated summary / export -->
       <section
         v-if="generating || generated || canExport"
-        class="border-t border-line pt-9"
+        class="border-t border-slate-100 pt-9"
       >
         <div
           class="flex flex-col gap-3 pb-1 sm:flex-row sm:items-center sm:justify-between"
         >
           <div>
-            <h2 class="font-serif text-title text-ink">
+            <h2 class="text-lg font-semibold text-slate-900">
               {{ generating || generated ? "Generated summary" : "Export" }}
             </h2>
-            <p v-if="generating || generated" class="mt-2 text-sm text-ink-muted">
+            <p v-if="generating || generated" class="mt-2 text-sm text-slate-500">
               Stored in the summary's generated-text field. Edit freely before exporting.
             </p>
-            <p v-else class="mt-2 text-sm text-ink-muted">
+            <p v-else class="mt-2 text-sm text-slate-500">
               No summary generated yet — you can still export straight from your own notes.
             </p>
           </div>
           <span
             v-if="savedAt"
-            class="inline-flex flex-none items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent"
+            class="inline-flex flex-none items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600"
           >
             Saved {{ savedAt }}
           </span>
@@ -354,13 +362,13 @@ onMounted(() => {
         <!-- Generating loader -->
         <div
           v-if="generating"
-          class="flex flex-col items-center justify-center gap-3 py-20 text-ink-muted"
+          class="flex flex-col items-center justify-center gap-3 py-20 text-slate-500"
         >
-          <svg class="h-7 w-7 animate-spin text-accent" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <svg class="h-7 w-7 animate-spin text-indigo-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
           </svg>
-          <p class="text-sm font-medium text-ink">Writing your summary…</p>
+          <p class="text-sm font-medium text-slate-800">Writing your summary…</p>
         </div>
 
         <template v-else>
@@ -368,15 +376,15 @@ onMounted(() => {
             v-if="generated"
             v-model="generated"
             rows="14"
-            class="field mt-5 resize-y leading-relaxed"
+            class="mt-5 block w-full resize-y rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm leading-relaxed shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
           ></textarea>
 
           <!-- Saving lives in the details section above; this row is export-only. -->
           <div
-            class="mt-6 flex flex-col gap-4 border-t border-line-soft pt-6 sm:flex-row sm:items-center sm:justify-end"
+            class="mt-6 flex flex-col gap-4 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-end"
           >
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <span class="label mb-0">
+              <span class="text-sm font-medium text-slate-700">
                 Export as
               </span>
               <div class="flex flex-wrap gap-2">
@@ -389,7 +397,7 @@ onMounted(() => {
                   :key="opt.key"
                   type="button"
                   :disabled="!canExport"
-                  class="btn btn-quiet hover:border-accent/40 hover:bg-accent-soft hover:text-accent"
+                  class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                   @click="exportFormat = opt.key"
                 >
                   {{ opt.label }}

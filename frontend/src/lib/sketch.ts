@@ -27,7 +27,7 @@ const HAND = `'Patrick Hand', 'Bradley Hand', 'Marker Felt', 'Comic Sans MS', cu
 const HAND_TITLE = `'Caveat', 'Bradley Hand', 'Marker Felt', 'Comic Sans MS', cursive`;
 const HAND_BODY = `'Kalam', 'Patrick Hand', 'Bradley Hand', 'Comic Sans MS', cursive`;
 
-export function composeSketchDocument(aiHtml: string): string {
+export function composeSketchDocument(aiHtml: string, photoDataUri?: string): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -69,6 +69,8 @@ body {
   min-height: 100%;
   transform-origin: top center;
 }
+
+.food-photo { display: block; width: 100%; max-height: 720px; object-fit: cover; border-radius: 28px; margin: 16px 0 24px; }
 
 /* Pins the final element to the bottom of the page. */
 .push-bottom { margin-top: auto; }
@@ -255,6 +257,7 @@ ul.sk > li::before {
 <body>
 <div id="stage">
 <div id="fit">
+${photoDataUri ? `<img class="food-photo" src="${photoDataUri}" alt="Uploaded food" />` : ""}
 ${aiHtml}
 </div>
 </div>

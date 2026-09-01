@@ -5,15 +5,12 @@ export interface Column<R> {
   key: string;
   label: string;
   sortable?: boolean;
-  /** Included when searching the table's global search box. */
   filterable?: boolean;
   display?: (row: R) => string;
   filterValue?: (row: R) => string;
   cellClass?: string;
   html?: boolean;
   width?: string;
-  /** Hide this column below the given breakpoint to keep the table usable on small screens. */
-  hideBelow?: "sm" | "md" | "lg" | "xl";
 }
 
 const props = defineProps<{
@@ -33,7 +30,16 @@ const emit = defineEmits<{
 type SortDir = "asc" | "desc" | null;
 const sortKey = ref<string | null>(null);
 const sortDir = ref<SortDir>(null);
-const search = ref("");
+const filters = ref<Record<string, string>>({});
+
+function setFilter(key: string, value: string) {
+  filters.value = { ...filters.value, [key]: value };
+  if (!value) delete filters.value[key];
+}
+
+function clearAllFilters() {
+  filters.value = {};
+}
 
 function getCellValue(row: T, col: Column<T>): string {
   if (col.display) return col.display(row);
@@ -60,26 +66,22 @@ function clickHeader(col: Column<T>) {
   }
 }
 
-function sortState(col: Column<T>): SortDir {
-  return sortKey.value === col.key ? sortDir.value : null;
-}
-
-/** Maps the tri-state sort into the ARIA value assistive tech expects. */
-function ariaSort(col: Column<T>): "ascending" | "descending" | "none" | undefined {
-  if (!col.sortable) return undefined;
-  const state = sortState(col);
-  return state === "asc" ? "ascending" : state === "desc" ? "descending" : "none";
-}
-
-const searchableColumns = computed(() => props.columns.filter((c) => c.filterable));
+const activeFilterCount = computed(
+  () => Object.values(filters.value).filter((v) => v.trim()).length,
+);
 
 const filteredRows = computed(() => {
-  const q = search.value.trim().toLowerCase();
-  if (!q) return props.rows;
-  const cols = searchableColumns.value;
-  return props.rows.filter((row) =>
-    cols.some((col) => getFilterValue(row, col).toLowerCase().includes(q)),
-  );
+  const activeFilters = Object.entries(filters.value).filter(([, v]) => v.trim());
+  if (activeFilters.length === 0) return props.rows;
+  return props.rows.filter((row) => {
+    for (const [key, q] of activeFilters) {
+      const col = props.columns.find((c) => c.key === key);
+      if (!col) continue;
+      const value = getFilterValue(row, col).toLowerCase();
+      if (!value.includes(q.trim().toLowerCase())) return false;
+    }
+    return true;
+  });
 });
 
 const sortedRows = computed(() => {
@@ -94,301 +96,145 @@ const sortedRows = computed(() => {
   });
 });
 
-const hideClasses: Record<NonNullable<Column<T>["hideBelow"]>, string> = {
-  sm: "hidden sm:table-cell",
-  md: "hidden md:table-cell",
-  lg: "hidden lg:table-cell",
-  xl: "hidden xl:table-cell",
-};
-
-function colClasses(col: Column<T>): string {
-  return col.hideBelow ? hideClasses[col.hideBelow] : "";
-}
-
-/* ── Stacked layout for narrow screens ───────────────────────────────────────
-   Below `sm` a table can only be read by scrolling sideways, so the same rows
-   are rendered as cards. The mapping is positional so the component stays
-   generic: the first column becomes the card's eyebrow, the second its title,
-   and the remaining columns become label/value meta lines — minus the ones the
-   caller already marked as wide-screen-only (`hideBelow` lg/xl), which keeps
-   the card short. Sorting and searching feed both layouts from the same
-   computed rows, so they behave identically. */
-const cardEyebrow = computed(() => props.columns[0]);
-const cardTitle = computed(() => props.columns[1] ?? props.columns[0]);
-const cardMeta = computed(() =>
-  props.columns
-    .slice(2)
-    .filter((c) => !c.hideBelow || c.hideBelow === "sm" || c.hideBelow === "md"),
-);
-
-function activate(row: T) {
-  emit("row-click", row);
+function sortIndicator(col: Column<T>): string {
+  if (sortKey.value !== col.key) return "↕";
+  if (sortDir.value === "asc") return "▲";
+  if (sortDir.value === "desc") return "▼";
+  return "↕";
 }
 </script>
 
 <template>
   <div class="w-full">
-    <!-- Search -->
-    <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
-      <div class="relative w-full sm:max-w-xs">
-        <label for="table-search" class="sr-only">Search summaries</label>
-        <span
-          class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-ink-faint"
-        >
-          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path
-              fill-rule="evenodd"
-              d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
-              clip-rule="evenodd"
-            />
-          </svg>
-        </span>
-        <input
-          id="table-search"
-          v-model="search"
-          type="text"
-          placeholder="Search your notes…"
-          class="field pl-9 pr-9 text-sm"
-        />
-        <button
-          v-if="search"
-          type="button"
-          class="absolute inset-y-0 right-0 flex items-center rounded-r-[0.625rem] pr-3 text-ink-faint transition-colors duration-150 hover:text-ink"
-          aria-label="Clear search"
-          @click="search = ''"
-        >
-          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path
-              fill-rule="evenodd"
-              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z"
-              clip-rule="evenodd"
-            />
-          </svg>
-        </button>
-      </div>
-      <p
-        v-if="search"
-        class="text-xs tracking-wide text-ink-muted"
-        role="status"
-        aria-live="polite"
+    <!-- Filter toolbar -->
+    <div
+      v-if="activeFilterCount > 0"
+      class="mb-3 flex items-center justify-between rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-2 text-sm text-indigo-700"
+    >
+      <span>
+        <strong>{{ filteredRows.length }}</strong> of
+        <strong>{{ rows.length }}</strong> rows match your filters
+      </span>
+      <button
+        type="button"
+        class="rounded px-2 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+        @click="clearAllFilters"
       >
-        <span class="font-semibold text-ink">{{ filteredRows.length }}</span>
-        of {{ rows.length }} match
-      </p>
+        Clear filters
+      </button>
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="space-y-3 py-2" aria-busy="true" aria-live="polite">
-      <span class="sr-only">Loading summaries…</span>
-      <div
-        v-for="n in 4"
-        :key="n"
-        class="flex animate-pulse items-center gap-4 border-b border-line-soft pb-5 pt-1"
-      >
-        <div class="flex-1 space-y-2.5">
-          <div class="h-2.5 w-24 rounded-full bg-paper-dim"></div>
-          <div class="h-3.5 rounded-full bg-paper-dim" :class="n % 2 ? 'w-2/3' : 'w-1/2'"></div>
-        </div>
-        <div class="h-2.5 w-16 rounded-full bg-paper-dim"></div>
+    <div
+      v-if="loading"
+      class="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-16"
+    >
+      <div class="flex items-center gap-3 text-slate-500">
+        <svg class="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
+        </svg>
+        Loading summaries…
       </div>
     </div>
 
     <!-- Empty -->
-    <div v-else-if="!sortedRows.length" class="px-6 py-20 text-center">
-      <span
-        class="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-paper-dim text-ink-faint"
+    <div
+      v-else-if="!sortedRows.length"
+      class="rounded-xl border-2 border-dashed border-slate-200 bg-white px-6 py-16 text-center"
+    >
+      <svg
+        class="mx-auto h-12 w-12 text-slate-300"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
         aria-hidden="true"
       >
-        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path stroke-linecap="round" d="M5.5 3.75h9a1 1 0 0 1 1 1v10.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1V4.75a1 1 0 0 1 1-1Z" />
-          <path stroke-linecap="round" d="M7.5 7.5h5M7.5 10.5h5M7.5 13.5h3" />
-        </svg>
-      </span>
-      <p class="font-serif text-lg text-ink">
-        {{ search ? "Nothing matches that search" : (emptyText ?? "No rows.") }}
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="1.5"
+          d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+        />
+      </svg>
+      <p class="mt-3 text-sm font-medium text-slate-700">
+        {{ emptyText ?? "No rows." }}
       </p>
-      <p v-if="search" class="mt-1.5 text-sm text-ink-muted">
-        Try a shorter phrase, or clear the search box.
-      </p>
-      <p v-else-if="emptyHint" class="mt-1.5 text-sm text-ink-muted">{{ emptyHint }}</p>
+      <p v-if="emptyHint" class="mt-1 text-sm text-slate-500">{{ emptyHint }}</p>
     </div>
 
-    <template v-else>
-      <!-- Stacked cards (below sm) -->
-      <ul class="-mt-1 space-y-2 sm:hidden">
-        <li
-          v-for="row in sortedRows"
-          :key="rowKey(row)"
-          class="rounded-2xl border border-line-soft bg-surface px-4 py-4 transition-shadow duration-200 focus-within:shadow-[0_2px_10px_rgb(33_31_28/0.07)]"
-          :class="props.rowClass?.(row)"
-        >
-          <button
-            type="button"
-            class="block w-full cursor-pointer text-left"
-            :aria-label="cardTitle ? getCellValue(row, cardTitle) : undefined"
-            @click="activate(row)"
-          >
-            <span
-              v-if="cardEyebrow"
-              class="block text-[11px] font-semibold uppercase tracking-[0.09em] text-accent"
-            >
-              {{ getCellValue(row, cardEyebrow) }}
-            </span>
-            <span
-              v-if="cardTitle"
-              class="mt-1 block font-serif text-base leading-snug text-ink"
-            >
-              {{ getCellValue(row, cardTitle) }}
-            </span>
-            <span
-              v-for="col in cardMeta"
-              :key="col.key"
-              class="mt-2 block text-sm leading-relaxed text-ink-muted"
-            >
-              <template v-if="col.html">
-                <span class="line-clamp-2" v-html="getCellValue(row, col)"></span>
-              </template>
-              <template v-else>
-                <span class="line-clamp-2">{{ getCellValue(row, col) }}</span>
-              </template>
-            </span>
-          </button>
-          <div
-            v-if="$slots.actions"
-            class="mt-3 flex items-center gap-1 border-t border-line-soft pt-2.5"
-          >
-            <slot name="actions" :row="row" />
-          </div>
-        </li>
-      </ul>
-
-      <!-- Table (sm and up) -->
-      <div class="hidden sm:block">
-        <div class="overflow-x-auto">
-          <table class="w-full border-collapse text-sm">
-            <thead>
-              <tr>
-                <th
-                  v-for="col in columns"
-                  :key="col.key"
-                  scope="col"
-                  class="border-b border-line px-3 py-2.5 text-left align-bottom text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-faint transition-colors duration-150 first:pl-1"
-                  :class="[
-                    col.sortable ? 'cursor-pointer select-none hover:text-ink-muted' : '',
-                    colClasses(col),
-                  ]"
-                  :style="col.width ? { width: col.width } : undefined"
-                  :aria-sort="ariaSort(col)"
-                  @click="clickHeader(col)"
-                >
-                  <button
-                    v-if="col.sortable"
-                    type="button"
-                    class="inline-flex cursor-pointer items-center gap-1 rounded uppercase tracking-[0.09em]"
-                    @click.stop="clickHeader(col)"
-                  >
-                    <span>{{ col.label }}</span>
-                    <span
-                      class="transition-colors duration-150"
-                      :class="sortState(col) ? 'text-accent' : 'text-line'"
-                      aria-hidden="true"
-                    >
-                      <svg
-                        v-if="sortState(col) === 'asc'"
-                        class="h-3.5 w-3.5"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          fill-rule="evenodd"
-                          d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z"
-                          clip-rule="evenodd"
-                        />
-                      </svg>
-                      <svg
-                        v-else-if="sortState(col) === 'desc'"
-                        class="h-3.5 w-3.5"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          fill-rule="evenodd"
-                          d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z"
-                          clip-rule="evenodd"
-                        />
-                      </svg>
-                      <svg v-else class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                        <path
-                          fill-rule="evenodd"
-                          d="M10 3a.75.75 0 01.55.24l3.25 3.5a.75.75 0 11-1.1 1.02L10 4.852 7.3 7.76a.75.75 0 11-1.1-1.02l3.25-3.5A.75.75 0 0110 3zm-3.76 9.24a.75.75 0 011.06.02L10 15.148l2.7-2.908a.75.75 0 111.1 1.02l-3.25 3.5a.75.75 0 01-1.1 0l-3.25-3.5a.75.75 0 01.02-1.06z"
-                          clip-rule="evenodd"
-                        />
-                      </svg>
-                    </span>
-                  </button>
-                  <span v-else>{{ col.label }}</span>
-                </th>
-                <th
-                  v-if="$slots.actions"
-                  scope="col"
-                  class="sticky right-0 w-px bg-paper px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-faint shadow-[inset_0_-1px_0_var(--color-line)]"
-                >
-                  <span class="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="row in sortedRows"
-                :key="rowKey(row)"
-                tabindex="0"
-                class="cursor-pointer bg-paper align-top transition-colors duration-150 hover:bg-surface focus-visible:bg-surface"
-                :class="props.rowClass?.(row)"
-                @click="activate(row)"
-                @keydown.enter="activate(row)"
-                @keydown.space.prevent="activate(row)"
+    <!-- Table -->
+    <div
+      v-else
+      class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+    >
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse text-sm">
+          <thead class="bg-slate-50/80 text-slate-700">
+            <tr>
+              <th
+                v-for="col in columns"
+                :key="col.key"
+                class="border-b border-slate-200 px-4 py-3 text-left align-top text-xs font-semibold uppercase tracking-wide text-slate-600"
+                :class="col.sortable ? 'cursor-pointer select-none hover:bg-slate-100' : ''"
+                :style="col.width ? { width: col.width } : undefined"
+                @click="clickHeader(col)"
               >
-                <!-- `cellClass` lands on an inner block element: `truncate` and
-                     `line-clamp-*` set their own `display`, which the cell's
-                     own `table-cell` would otherwise cancel out. -->
-                <td
-                  v-for="col in columns"
-                  :key="col.key"
-                  class="border-b border-line-soft px-3 py-4 text-ink-soft first:pl-1"
-                  :class="colClasses(col)"
-                >
-                  <div :class="col.cellClass">
-                    <span v-if="!col.html">{{ getCellValue(row, col) }}</span>
-                    <span v-else v-html="getCellValue(row, col)"></span>
-                  </div>
-                </td>
-                <td
-                  v-if="$slots.actions"
-                  class="sticky right-0 w-px whitespace-nowrap bg-inherit px-2 py-3 text-right shadow-[inset_0_-1px_0_var(--color-line-soft)]"
+                <div class="mb-1.5 flex items-center justify-between gap-1">
+                  <span>{{ col.label }}</span>
+                  <span v-if="col.sortable" class="text-xs text-slate-400">
+                    {{ sortIndicator(col) }}
+                  </span>
+                </div>
+                <input
+                  v-if="col.filterable"
+                  type="text"
+                  class="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-normal normal-case text-slate-700 shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  :value="filters[col.key] ?? ''"
+                  :placeholder="`Filter ${col.label.toLowerCase()}…`"
                   @click.stop
-                >
-                  <div
-                    class="row-actions flex items-center justify-end gap-0.5 transition-opacity duration-200 lg:opacity-50"
-                  >
-                    <slot name="actions" :row="row" />
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                  @input="(e) => setFilter(col.key, (e.target as HTMLInputElement).value)"
+                />
+              </th>
+              <th
+                v-if="$slots.actions"
+                class="w-px border-b border-slate-200 px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600"
+              >
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr
+              v-for="(row, i) in sortedRows"
+              :key="rowKey(row)"
+              class="cursor-pointer transition hover:bg-indigo-50/40"
+              :class="[
+                i % 2 === 1 ? 'bg-slate-50/40' : 'bg-white',
+                props.rowClass?.(row),
+              ]"
+              @click="emit('row-click', row)"
+            >
+              <td
+                v-for="col in columns"
+                :key="col.key"
+                class="px-4 py-3 align-top text-slate-700"
+                :class="col.cellClass"
+              >
+                <span v-if="!col.html">{{ getCellValue(row, col) }}</span>
+                <span v-else v-html="getCellValue(row, col)"></span>
+              </td>
+              <td
+                v-if="$slots.actions"
+                class="w-px whitespace-nowrap px-4 py-3 text-right"
+                @click.stop
+              >
+                <slot name="actions" :row="row" />
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-    </template>
+    </div>
   </div>
 </template>
-
-<style scoped>
-/* Reveal the per-row actions on hover/focus at desktop widths, where they'd
-   otherwise compete with the content for attention. Touch layouts keep them
-   fully visible. */
-tbody tr:hover .row-actions,
-tbody tr:focus-within .row-actions,
-tbody tr:focus-visible .row-actions {
-  opacity: 1;
-}
-</style>

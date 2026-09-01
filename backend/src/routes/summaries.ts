@@ -15,7 +15,8 @@ export const summariesRouter = Router();
 summariesRouter.use(requireUser);
 
 summariesRouter.get("/", async (req, res) => {
-  const items = await listSummaries(req.userId);
+  const type = req.query.type === "food-review" ? "food-review" : req.query.type === "podcast" ? "podcast" : undefined;
+  const items = await listSummaries(req.userId, type);
   res.json({ items });
 });
 
@@ -37,12 +38,14 @@ summariesRouter.post("/", async (req, res) => {
     return;
   }
   const created = await createSummary(req.userId, {
+    type: body.type === "food-review" ? "food-review" : "podcast",
     podcastName: body.podcastName,
     sessionTitle: body.sessionTitle,
     url: body.url ?? null,
     guest: body.guest ?? null,
     content: body.content ?? "",
     summaryGeneratorText: body.summaryGeneratorText ?? "",
+    imageDataUri: body.imageDataUri ?? null,
   });
   res.status(201).json(created);
 });
@@ -67,6 +70,7 @@ summariesRouter.put("/:id", async (req, res) => {
   }
   const updated = await updateSummary(req.userId, req.params.id, {
     podcastName: body.podcastName,
+    type: body.type === "food-review" ? "food-review" : body.type === "podcast" ? "podcast" : undefined,
     sessionTitle: body.sessionTitle,
     url: body.url ?? null,
     guest: body.guest ?? null,
@@ -74,6 +78,8 @@ summariesRouter.put("/:id", async (req, res) => {
     ...(body.summaryGeneratorText !== undefined
       ? { summaryGeneratorText: body.summaryGeneratorText }
       : {}),
+    ...(body.imageDataUri !== undefined ? { imageDataUri: body.imageDataUri } : {}),
+    ...(body.imageDataUri !== undefined ? { imageDataUri: body.imageDataUri } : {}),
   });
   if (!updated) {
     res.status(404).json({ error: "not found" });

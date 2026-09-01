@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { reactive, watch, ref } from "vue";
+import { reactive, watch } from "vue";
 import RichEditor from "./RichEditor.vue";
-import ImageScanner from "./ImageScanner.vue";
 import type { Summary, SummaryInput } from "../api/client";
 
 const props = defineProps<{
@@ -18,20 +17,15 @@ const emit = defineEmits<{
 const form = reactive({
   podcastName: "",
   sessionTitle: "",
-  guest: "",
   url: "",
   content: "",
 });
-
-const showScanner = ref(false);
-const inputMode = ref<'write' | 'scan'>('write');
 
 watch(
   () => props.initial,
   (s) => {
     form.podcastName = s?.podcastName ?? "";
     form.sessionTitle = s?.sessionTitle ?? "";
-    form.guest = s?.guest ?? "";
     form.url = s?.url ?? "";
     form.content = s?.content ?? "";
   },
@@ -43,204 +37,156 @@ function onSubmit() {
   const input: SummaryInput = {
     podcastName: form.podcastName.trim(),
     sessionTitle: form.sessionTitle.trim(),
-    guest: form.guest.trim() ? form.guest.trim() : null,
     url: form.url.trim() ? form.url.trim() : null,
     content: form.content,
   };
   emit("submit", input);
 }
-
-/**
- * Handle text extracted from OCR scanner
- */
-function onTextExtracted(text: string) {
-  // Append extracted text to existing content
-  if (form.content && !form.content.endsWith('\n')) {
-    form.content += '\n\n';
-  }
-  form.content += text;
-  // Close scanner after extraction
-  setTimeout(() => {
-    showScanner.value = false;
-    inputMode.value = 'write';
-  }, 500);
-}
 </script>
 
 <template>
-  <form class="space-y-9" @submit.prevent="onSubmit">
+  <form
+    class="space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+    @submit.prevent="onSubmit"
+  >
     <!-- Header -->
-    <header>
-      <h1 class="font-serif text-display text-ink">
-        {{ initial ? "Edit summary" : "New summary" }}
-      </h1>
-      <p class="mt-2 text-sm text-ink-muted">
-        {{
-          initial
-            ? "Change anything you like, then save."
-            : "Jot down what stayed with you from the episode."
-        }}
-      </p>
-    </header>
-
-    <!-- Episode details -->
-    <fieldset class="space-y-6">
-      <legend class="sr-only">Episode details</legend>
-
-      <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        <div>
-          <label for="podcast" class="label">
-            Podcast
-            <span class="label-hint" aria-hidden="true">required</span>
-          </label>
-          <input
-            id="podcast"
-            v-model="form.podcastName"
-            required
-            autocomplete="off"
-            placeholder="Huberman Lab"
-            class="field"
-          />
-        </div>
-        <div>
-          <label for="session" class="label">
-            Session title
-            <span class="label-hint" aria-hidden="true">required</span>
-          </label>
-          <input
-            id="session"
-            v-model="form.sessionTitle"
-            required
-            autocomplete="off"
-            placeholder="Ep 1 — Sleep &amp; adenosine"
-            class="field"
-          />
-        </div>
-        <div>
-          <label for="guest" class="label">
-            Guest
-            <span class="label-hint">optional</span>
-          </label>
-          <input
-            id="guest"
-            v-model="form.guest"
-            autocomplete="off"
-            placeholder="Dr. Matt Walker"
-            class="field"
-          />
-        </div>
-        <div>
-          <label for="url" class="label">
-            Link
-            <span class="label-hint">optional</span>
-          </label>
-          <input
-            id="url"
-            v-model="form.url"
-            type="url"
-            placeholder="https://example.com/episode-1"
-            class="field"
-          />
-        </div>
+    <div class="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+      <div>
+        <h2 class="text-xl font-semibold text-slate-900">
+          {{ initial ? "Edit summary" : "Create a new summary" }}
+        </h2>
+        <p class="mt-1 text-sm text-slate-500">
+          {{
+            initial
+              ? "Update the details below and save your changes."
+              : "Capture the key takeaways from a podcast episode."
+          }}
+        </p>
       </div>
-    </fieldset>
+      <span
+        v-if="initial"
+        class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200"
+      >
+        Editing
+      </span>
+    </div>
 
-    <!-- Notes Section -->
+    <!-- Required fields -->
+    <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+      <div>
+        <label for="podcast" class="mb-1.5 block text-sm font-medium text-slate-700">
+          Podcast name
+          <span class="text-rose-500">*</span>
+        </label>
+        <input
+          id="podcast"
+          v-model="form.podcastName"
+          required
+          placeholder="e.g. Huberman Lab"
+          class="block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+        />
+      </div>
+      <div>
+        <label for="session" class="mb-1.5 block text-sm font-medium text-slate-700">
+          Session title
+          <span class="text-rose-500">*</span>
+        </label>
+        <input
+          id="session"
+          v-model="form.sessionTitle"
+          required
+          placeholder="e.g. Ep 1 — Sleep & adenosine"
+          class="block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+        />
+      </div>
+    </div>
+
+    <!-- URL -->
     <div>
-      <div class="mb-4 flex items-baseline justify-between gap-4">
-        <span id="notes-label" class="label mb-0">Notes</span>
-        <div class="flex gap-2">
-          <button
-            type="button"
-            :class="[
-              'text-xs font-medium px-3 py-1 rounded-lg transition-colors',
-              inputMode === 'write'
-                ? 'bg-accent text-white'
-                : 'bg-ink-faint/10 text-ink-faint hover:text-ink hover:bg-ink-faint/20'
-            ]"
-            @click="inputMode = 'write'; showScanner = false"
-          >
-            ✏️ Write
-          </button>
-          <button
-            type="button"
-            :class="[
-              'text-xs font-medium px-3 py-1 rounded-lg transition-colors',
-              inputMode === 'scan'
-                ? 'bg-accent text-white'
-                : 'bg-ink-faint/10 text-ink-faint hover:text-ink hover:bg-ink-faint/20'
-            ]"
-            @click="inputMode = 'scan'; showScanner = !showScanner"
-          >
-            📸 Scan
-          </button>
-        </div>
-      </div>
-
-      <!-- Write Mode -->
-      <div v-show="inputMode === 'write'" class="space-y-3">
-        <span class="hidden text-xs text-ink-faint sm:inline">
-          Bold, lists, headings, quotes and code all work
+      <label for="url" class="mb-1.5 block text-sm font-medium text-slate-700">
+        URL
+        <span class="text-xs font-normal text-slate-400">(optional)</span>
+      </label>
+      <div class="relative">
+        <span
+          class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"
+        >
+          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path
+              fill-rule="evenodd"
+              d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z"
+              clip-rule="evenodd"
+            />
+          </svg>
         </span>
-        <RichEditor
-          v-model="form.content"
-          placeholder="Write your summary here…"
-          role="group"
-          aria-labelledby="notes-label"
+        <input
+          id="url"
+          v-model="form.url"
+          type="url"
+          placeholder="https://example.com/episode-1"
+          class="block w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-3.5 text-sm shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
         />
       </div>
+    </div>
 
-      <!-- Scan Mode -->
-      <div v-show="inputMode === 'scan'" class="space-y-4">
-        <ImageScanner
-          :on-text-extracted="onTextExtracted"
-          @text-extracted="onTextExtracted"
-        />
-        <div v-if="form.content" class="p-4 rounded-lg bg-accent-soft/20 border border-accent-soft">
-          <p class="text-sm text-ink-muted mb-3">Current notes preview:</p>
-          <div class="text-sm text-ink font-mono whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
-            {{ form.content }}
-          </div>
-        </div>
-      </div>
+    <!-- WYSIWYG -->
+    <div>
+      <label class="mb-1.5 block text-sm font-medium text-slate-700">
+        Notes
+        <span class="text-xs font-normal text-slate-400">
+          (rich text — bold, lists, headings, quotes, code)
+        </span>
+      </label>
+      <RichEditor
+        v-model="form.content"
+        placeholder="Write your summary here…"
+      />
     </div>
 
     <!-- Actions -->
     <div
-      class="flex flex-col-reverse gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between"
+      class="flex flex-col-reverse items-stretch gap-2 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between"
     >
       <button
         v-if="initial"
         type="button"
-        class="btn btn-danger-quiet w-full sm:w-auto"
+        class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-white px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-50"
         @click="emit('delete', initial.id)"
       >
-        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
           <path
             fill-rule="evenodd"
             d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
             clip-rule="evenodd"
           />
         </svg>
-        Delete summary
+        Delete
       </button>
-      <span v-else class="hidden sm:block"></span>
-
-      <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
-        <button type="button" class="btn btn-ghost" @click="emit('cancel')">
+      <span v-else></span>
+      <div class="flex flex-col-reverse gap-2 sm:flex-row">
+        <button
+          type="button"
+          class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          @click="emit('cancel')"
+        >
           Cancel
         </button>
-        <button type="submit" :disabled="submitting" class="btn btn-primary">
+        <button
+          type="submit"
+          :disabled="submitting"
+          class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        >
           <svg
-            v-if="submitting"
-            class="h-4 w-4 animate-spin"
-            viewBox="0 0 24 24"
-            fill="none"
-            aria-hidden="true"
+            v-if="!submitting"
+            class="h-4 w-4"
+            viewBox="0 0 20 20"
+            fill="currentColor"
           >
-            <circle class="opacity-30" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
-            <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V1C5.9 1 1 5.9 1 12h3z" />
+            <path
+              d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.949A.75.75 0 004.42 8.71l1.116-.267a.75.75 0 01.49.063L8 9.586l2.022-1.18a.75.75 0 01.49-.063l1.117.267a.75.75 0 00.726-.521l1.414-4.949a.75.75 0 00-.826-.95L10 2.81 3.105 2.29zM5 11.5a.5.5 0 01.5-.5h9a.5.5 0 010 1h-9a.5.5 0 01-.5-.5z"
+            />
           </svg>
+          <span v-if="submitting" class="inline-block animate-spin">⏳</span>
           {{ submitting ? "Saving…" : initial ? "Save changes" : "Create summary" }}
         </button>
       </div>

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { api, type Summary } from "../api/client";
+import { foodApi, type FoodReview } from "../api/client";
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
 
-const summary = ref<Summary | null>(null);
+const review = ref<FoodReview | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
 
@@ -14,7 +14,7 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    summary.value = await api.get(props.id);
+    review.value = await foodApi.get(props.id);
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
@@ -22,16 +22,30 @@ async function load() {
   }
 }
 
-const htmlContent = computed(() => summary.value?.content ?? "");
+const htmlContent = computed(() => review.value?.content ?? "");
+
+/** Plain YYYY-MM-DD — build the Date from parts so it isn't shifted by the
+ *  local UTC offset. */
+const visitLabel = computed(() => {
+  const s = review.value?.dateVisit;
+  if (!s) return null;
+  const [y, m, d] = s.split("-").map(Number);
+  if (!y || !m || !d) return s;
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+});
 
 function edit() {
-  router.push({ name: "edit", params: { id: props.id } });
+  router.push({ name: "food-edit", params: { id: props.id } });
 }
 function generate() {
-  router.push({ name: "generate", params: { id: props.id } });
+  router.push({ name: "food-generate", params: { id: props.id } });
 }
 function back() {
-  router.push({ name: "list" });
+  router.push({ name: "food-list" });
 }
 
 onMounted(load);
@@ -41,8 +55,8 @@ onMounted(load);
   <section class="mx-auto max-w-4xl">
     <!-- Breadcrumb -->
     <nav class="mb-4 flex items-center gap-2 text-sm text-slate-500">
-      <router-link to="/" class="hover:text-indigo-600">My summaries</router-link>
-      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <router-link to="/food" class="hover:text-indigo-600">Food reviews</router-link>
+      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
         <path
           fill-rule="evenodd"
           d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
@@ -50,7 +64,7 @@ onMounted(load);
         />
       </svg>
       <span class="truncate font-medium text-slate-700">
-        {{ summary?.sessionTitle ?? "…" }}
+        {{ review?.restoName ?? "…" }}
       </span>
     </nav>
 
@@ -85,10 +99,10 @@ onMounted(load);
 
     <!-- Not found -->
     <div
-      v-else-if="!summary"
+      v-else-if="!review"
       class="rounded-xl border-2 border-dashed border-slate-200 bg-white px-6 py-16 text-center"
     >
-      <p class="text-sm font-medium text-slate-700">Summary not found</p>
+      <p class="text-sm font-medium text-slate-700">Food review not found</p>
       <p class="mt-1 text-sm text-slate-500">
         It may have been deleted, or the link is wrong.
       </p>
@@ -97,7 +111,7 @@ onMounted(load);
         class="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
         @click="back"
       >
-        ← Back to summaries
+        ← Back to food reviews
       </button>
     </div>
 
@@ -106,32 +120,38 @@ onMounted(load);
       v-else
       class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
     >
-      <!-- Card header -->
-      <header class="flex flex-col gap-4 border-b border-slate-100 bg-gradient-to-b from-slate-50 to-white p-6 sm:flex-row sm:items-start sm:justify-between">
+      <header
+        class="flex flex-col gap-4 border-b border-slate-100 bg-gradient-to-b from-slate-50 to-white p-6 sm:flex-row sm:items-start sm:justify-between"
+      >
         <div class="min-w-0 flex-1">
           <h1 class="text-2xl font-bold tracking-tight text-slate-900">
-            {{ summary.sessionTitle }}
+            {{ review.restoName }}
           </h1>
-          <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-            <span class="font-medium text-slate-700">{{ summary.podcastName }}</span>
-            <span v-if="summary.url" class="text-slate-300">·</span>
+          <p v-if="review.description" class="mt-1 text-sm font-medium text-slate-700">
+            {{ review.description }}
+          </p>
+          <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600">
+            <span v-if="visitLabel">🗓️ {{ visitLabel }}</span>
+            <span v-if="visitLabel && review.location" class="text-slate-300">·</span>
+            <span v-if="review.location">📍 {{ review.location }}</span>
+            <span v-if="review.urlWebResto" class="text-slate-300">·</span>
             <a
-              v-if="summary.url"
-              :href="summary.url"
+              v-if="review.urlWebResto"
+              :href="review.urlWebResto"
               target="_blank"
               rel="noreferrer"
               class="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:underline"
             >
-              <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
                 <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
               </svg>
-              Open
+              Website
             </a>
           </p>
           <p class="mt-1 text-xs text-slate-500">
-            Created {{ new Date(summary.createdAt).toLocaleString() }} ·
-            updated {{ new Date(summary.updatedAt).toLocaleString() }}
+            Created {{ new Date(review.createdAt).toLocaleString() }} ·
+            updated {{ new Date(review.updatedAt).toLocaleString() }}
           </p>
         </div>
         <div class="flex flex-shrink-0 flex-wrap gap-2">
@@ -147,7 +167,7 @@ onMounted(load);
             class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             @click="edit"
           >
-            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path
                 d="M2.695 14.763l-1.262 3.155a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.886L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z"
               />
@@ -169,7 +189,16 @@ onMounted(load);
         </div>
       </header>
 
-      <!-- Content body -->
+      <!-- Photo -->
+      <div v-if="review.imageDataUri" class="border-b border-slate-100 bg-slate-50 p-6">
+        <img
+          :src="review.imageDataUri"
+          :alt="`Photo from ${review.restoName}`"
+          class="mx-auto max-h-96 rounded-lg object-contain"
+        />
+      </div>
+
+      <!-- Notes -->
       <div class="p-6">
         <div
           v-if="htmlContent"
@@ -177,7 +206,20 @@ onMounted(load);
           v-html="htmlContent"
         ></div>
         <p v-else class="text-sm italic text-slate-500">
-          No notes were written for this summary yet.
+          No notes were written for this review yet.
+        </p>
+      </div>
+
+      <!-- Generated summary -->
+      <div
+        v-if="review.summaryGeneratorText"
+        class="border-t border-slate-100 bg-slate-50/60 p-6"
+      >
+        <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-600">
+          Generated summary
+        </h2>
+        <p class="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+          {{ review.summaryGeneratorText }}
         </p>
       </div>
     </article>

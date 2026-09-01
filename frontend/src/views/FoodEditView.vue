@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { api, type Summary, type SummaryInput } from "../api/client";
-import SummaryForm from "../components/SummaryForm.vue";
+import { foodApi, type FoodReview, type FoodReviewInput } from "../api/client";
+import FoodReviewForm from "../components/FoodReviewForm.vue";
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
 
-const summary = ref<Summary | null>(null);
+const review = ref<FoodReview | null>(null);
 const loading = ref(true);
 const submitting = ref(false);
 const error = ref<string | null>(null);
@@ -16,7 +16,7 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    summary.value = await api.get(props.id);
+    review.value = await foodApi.get(props.id);
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
@@ -24,13 +24,13 @@ async function load() {
   }
 }
 
-async function onSubmit(input: SummaryInput) {
-  if (!summary.value) return;
+async function onSubmit(input: FoodReviewInput) {
+  if (!review.value) return;
   submitting.value = true;
   error.value = null;
   try {
-    const updated = await api.update(summary.value.id, input);
-    router.push({ name: "detail", params: { id: updated.id } });
+    const updated = await foodApi.update(review.value.id, input);
+    router.push({ name: "food-detail", params: { id: updated.id } });
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
@@ -39,17 +39,17 @@ async function onSubmit(input: SummaryInput) {
 }
 
 async function onDelete(id: string) {
-  if (!confirm("Delete this summary? This cannot be undone.")) return;
+  if (!confirm("Delete this food review? This cannot be undone.")) return;
   try {
-    await api.remove(id);
-    router.push({ name: "list" });
+    await foodApi.remove(id);
+    router.push({ name: "food-list" });
   } catch (e) {
     error.value = (e as Error).message;
   }
 }
 
 function onCancel() {
-  router.push({ name: "detail", params: { id: props.id } });
+  router.push({ name: "food-detail", params: { id: props.id } });
 }
 
 onMounted(load);
@@ -59,8 +59,8 @@ onMounted(load);
   <section class="mx-auto max-w-4xl">
     <!-- Breadcrumb -->
     <nav class="mb-4 flex items-center gap-2 text-sm text-slate-500">
-      <router-link to="/" class="hover:text-indigo-600">My summaries</router-link>
-      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <router-link to="/food" class="hover:text-indigo-600">Food reviews</router-link>
+      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
         <path
           fill-rule="evenodd"
           d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
@@ -68,13 +68,13 @@ onMounted(load);
         />
       </svg>
       <router-link
-        v-if="summary"
-        :to="{ name: 'detail', params: { id } }"
+        v-if="review"
+        :to="{ name: 'food-detail', params: { id } }"
         class="max-w-xs truncate hover:text-indigo-600"
       >
-        {{ summary.sessionTitle }}
+        {{ review.restoName }}
       </router-link>
-      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
         <path
           fill-rule="evenodd"
           d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
@@ -99,7 +99,7 @@ onMounted(load);
       <span>{{ error }}</span>
     </div>
 
-    <!-- Loading skeleton -->
+    <!-- Loading -->
     <div
       v-if="loading"
       class="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-24"
@@ -113,9 +113,9 @@ onMounted(load);
       </div>
     </div>
 
-    <SummaryForm
-      v-else-if="summary"
-      :initial="summary"
+    <FoodReviewForm
+      v-else-if="review"
+      :initial="review"
       :submitting="submitting"
       @submit="onSubmit"
       @cancel="onCancel"
