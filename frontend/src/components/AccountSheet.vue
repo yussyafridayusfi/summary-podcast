@@ -130,7 +130,7 @@ const logout = () =>
             <span>{{ t.label }}</span>
           </button>
         </div>
-        <p class="small muted">Pixel is a retro 8-bit skin. Your choice is remembered on this device.</p>
+        <p class="small muted">Pixel (light) is the default. Your choice is remembered on this device.</p>
       </section>
 
       <button v-if="isSignedIn" class="danger" :disabled="busy" @click="logout">Sign out</button>
@@ -187,6 +187,9 @@ const logout = () =>
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
+}
+.themes {
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
 }
 .style,
 .theme {

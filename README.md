@@ -20,8 +20,13 @@ guest summaries are moved into the account. Signed-in requests use
 - 🗂 **Sections**: Podcast and Food share one summary shape but have their own
   labels, empty states, AI prompts and card badges. Add a section in
   `frontend/src/lib/sections.ts` + `backend/src/ai/summarize.ts`.
-- 🎨 **Themes**: System, Light, Dark and **Pixel** (retro 8-bit skin: Press
-  Start 2P / VT323 fonts, hard edges, chunky shadows, CRT scanlines).
+- 🎨 **Themes**: **Pixel** (default: light, paper-and-ink 8-bit skin with
+  Press Start 2P / VT323 fonts, hard edges, chunky shadows, faint scanlines),
+  Pixel Dark (CRT navy), plus modern Light, Dark and System.
+- 🏠 **Dashboard**: home screen with counts per section, AI-written share,
+  key points saved, top tags, recent summaries and quick "New" actions.
+- ❔ **Built-in guide**: a six-step "How to use" sheet opens on first visit
+  and stays one tap away from the dashboard, header and account sheet.
 - ✨ **Generate with AI**: notes (+ optional episode URL) → headline, key
   takeaways, quotes, tags, mood and a cover-illustration prompt. Everything
   is editable before saving.
@@ -330,12 +335,28 @@ segmented control (desktop). Section copy lives in
 
 ### Themes
 
-`<html data-theme="light|dark|pixel">`, or no attribute for "system" (which
-follows `prefers-color-scheme`). All tokens are CSS variables in
-`frontend/src/styles.css`; the Pixel theme additionally overrides fonts, radii
-and shadows and adds a scanline overlay. The choice is saved in
-`localStorage` and applied by an inline script in `index.html` before first
-paint. Switch it from the account sheet or the header button (cycles).
+`<html data-theme="pixel|pixel-dark|light|dark">`, or no attribute for
+"system" (modern palette following `prefers-color-scheme`). **Pixel (light)
+is the default** for new visitors. All tokens are CSS variables in
+`frontend/src/styles.css`; both pixel variants share the structural rules
+under `[data-theme^="pixel"]` (fonts, zero radii, offset shadows, scanlines)
+and differ only in palette. The choice is saved in `localStorage` and applied
+by an inline script in `index.html` before first paint. Switch it from the
+account sheet or the header button, which cycles
+Pixel → Pixel Dark → Light → Dark → System.
+
+### Dashboard & guide
+
+The home view (`Dashboard.vue`) calls `GET /api/summaries/stats`, which
+returns counts for the caller only: total, per-kind, AI-written, with cover,
+created this week, takeaways saved, the top 12 tags and the 6 most recent
+summaries. Tiles for Podcast/Food jump into a new summary of that kind;
+recent rows open the summary in its section. The stats are recomputed after
+every create, edit, delete, cover save or sign-in.
+
+`HelpSheet.vue` is the six-step guide. It opens automatically once
+(`summary-hub:seen-help` in `localStorage`), and afterwards from the ❔ button
+in the header (desktop), on the dashboard, or from the empty state.
 
 ## Daily development workflow
 
@@ -478,7 +499,8 @@ Base URL: `http://localhost:4000` (dev) — all routes under `/api/summaries`.
 
 | Method | Path                 | Body                                            | Returns         | Status          |
 | ------ | -------------------- | ----------------------------------------------- | --------------- | --------------- |
-| GET    | `/api/summaries`     | —                                               | `{ items }`     | 200             |
+| GET    | `/api/summaries`     | `?kind=podcast\|food` (optional)                 | `{ items }`     | 200             |
+| GET    | `/api/summaries/stats` | —                                             | dashboard stats | 200             |
 | GET    | `/api/summaries/:id` | —                                               | summary         | 200 / 404       |
 | POST   | `/api/summaries`     | `{ podcastName, sessionTitle, url?, content? }` | created summary | 201 / 400       |
 | PUT    | `/api/summaries/:id` | same shape as POST                              | updated         | 200 / 400 / 404 |

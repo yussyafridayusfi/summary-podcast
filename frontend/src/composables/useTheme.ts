@@ -1,29 +1,35 @@
 import { computed, ref, watch } from "vue";
 
 /**
- * Themes: "system" follows the OS, "light" / "dark" force a palette, and
- * "pixel" is a retro 8-bit skin (own font, hard edges, chunky shadows).
- * The value is stamped on <html data-theme> and CSS does the rest.
+ * Themes are stamped on <html data-theme> and CSS does the rest.
+ *  - "pixel"      light retro 8-bit skin (default)
+ *  - "pixel-dark" the same skin on a CRT-navy palette
+ *  - "light" / "dark" modern flat palettes
+ *  - "system"     modern palette following the OS setting
  */
-export type Theme = "system" | "light" | "dark" | "pixel";
+export type Theme = "pixel" | "pixel-dark" | "light" | "dark" | "system";
+
+export const DEFAULT_THEME: Theme = "pixel";
 
 export const THEMES: { id: Theme; label: string; icon: string; hint: string }[] = [
-  { id: "system", label: "System", icon: "🖥️", hint: "Follow your device" },
-  { id: "light", label: "Light", icon: "☀️", hint: "Bright and clean" },
-  { id: "dark", label: "Dark", icon: "🌙", hint: "Easy on the eyes" },
-  { id: "pixel", label: "Pixel", icon: "👾", hint: "8-bit classic" },
+  { id: "pixel", label: "Pixel", icon: "👾", hint: "8-bit classic, light (default)" },
+  { id: "pixel-dark", label: "Pixel Dark", icon: "🕹️", hint: "8-bit on a CRT-navy screen" },
+  { id: "light", label: "Light", icon: "☀️", hint: "Modern, bright and clean" },
+  { id: "dark", label: "Dark", icon: "🌙", hint: "Modern, easy on the eyes" },
+  { id: "system", label: "System", icon: "🖥️", hint: "Modern, follows your device" },
 ];
 
 const KEY = "summary-hub:theme";
+const VALID = new Set<Theme>(THEMES.map((t) => t.id));
 
 function load(): Theme {
   try {
-    const v = localStorage.getItem(KEY);
-    if (v === "light" || v === "dark" || v === "pixel" || v === "system") return v;
+    const v = localStorage.getItem(KEY) as Theme | null;
+    if (v && VALID.has(v)) return v;
   } catch {
     /* ignore */
   }
-  return "system";
+  return DEFAULT_THEME;
 }
 
 const theme = ref<Theme>(load());
@@ -51,6 +57,12 @@ watch(theme, (t) => {
 });
 
 export function useTheme() {
-  const isPixel = computed(() => theme.value === "pixel");
-  return { theme, themes: THEMES, isPixel, setTheme: (t: Theme) => (theme.value = t) };
+  const isPixel = computed(() => theme.value.startsWith("pixel"));
+  const icon = computed(() => THEMES.find((t) => t.id === theme.value)?.icon ?? "👾");
+  /** Header quick-toggle: cycles through the list in order. */
+  function cycle() {
+    const i = THEMES.findIndex((t) => t.id === theme.value);
+    theme.value = THEMES[(i + 1) % THEMES.length].id;
+  }
+  return { theme, themes: THEMES, isPixel, icon, setTheme: (t: Theme) => (theme.value = t), cycle };
 }

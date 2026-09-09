@@ -82,6 +82,18 @@ export interface ProviderInfo {
   styles: { id: string; label: string; emoji: string }[];
 }
 
+export interface Stats {
+  total: number;
+  byKind: Record<Kind, number>;
+  aiCount: number;
+  withCover: number;
+  thisWeek: number;
+  takeaways: number;
+  tags: { tag: string; count: number }[];
+  recent: Summary[];
+  lastUpdated: string | null;
+}
+
 export interface ImageParams {
   prompt: string;
   style: string;
@@ -177,6 +189,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   list: (kind?: Kind) => request<{ items: Summary[] }>(`/summaries${kind ? `?kind=${kind}` : ""}`),
+  stats: () => request<Stats>("/summaries/stats"),
   get: (id: string) => request<Summary>(`/summaries/${id}`),
   create: (input: SummaryInput) =>
     request<Summary>("/summaries", { method: "POST", body: JSON.stringify(input) }),

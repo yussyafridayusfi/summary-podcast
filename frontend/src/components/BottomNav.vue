@@ -3,19 +3,38 @@ import type { AuthUser } from "../api/client";
 import { SECTION_LIST, type Kind } from "../lib/sections";
 import Avatar from "./Avatar.vue";
 
-defineProps<{ kind: Kind; user: AuthUser | null }>();
-const emit = defineEmits<{ (e: "select", kind: Kind): void; (e: "account"): void }>();
+defineProps<{
+  /** Active section when `view` is "summaries". */
+  kind: Kind;
+  view: "dashboard" | "summaries";
+  user: AuthUser | null;
+}>();
+const emit = defineEmits<{
+  (e: "select", kind: Kind): void;
+  (e: "home"): void;
+  (e: "account"): void;
+}>();
 </script>
 
 <template>
-  <nav class="bottomnav" aria-label="Sections">
+  <nav class="bottomnav" aria-label="Main">
+    <button
+      type="button"
+      class="tab"
+      :class="{ on: view === 'dashboard' }"
+      :aria-current="view === 'dashboard' ? 'page' : undefined"
+      @click="emit('home')"
+    >
+      <span class="ic" aria-hidden="true">🏠</span>
+      <span>Home</span>
+    </button>
     <button
       v-for="s in SECTION_LIST"
       :key="s.id"
       type="button"
       class="tab"
-      :class="{ on: kind === s.id }"
-      :aria-current="kind === s.id ? 'page' : undefined"
+      :class="{ on: view === 'summaries' && kind === s.id }"
+      :aria-current="view === 'summaries' && kind === s.id ? 'page' : undefined"
       @click="emit('select', s.id)"
     >
       <span class="ic" aria-hidden="true">{{ s.icon }}</span>
@@ -43,7 +62,7 @@ const emit = defineEmits<{ (e: "select", kind: Kind): void; (e: "account"): void
   background: color-mix(in srgb, var(--bg-elev) 90%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border-top: 1px solid var(--line);
+  border-top: var(--border-w) solid var(--line);
 }
 .tab {
   all: unset;
@@ -54,9 +73,10 @@ const emit = defineEmits<{ (e: "select", kind: Kind): void; (e: "account"): void
   gap: 2px;
   min-height: 52px;
   padding: 0.25rem;
-  border-radius: 12px;
+  border-radius: var(--radius-s);
   font-size: 0.7rem;
   font-weight: 600;
+  font-family: var(--font-heading);
   color: var(--fg-muted);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -64,6 +84,9 @@ const emit = defineEmits<{ (e: "select", kind: Kind): void; (e: "account"): void
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+:root[data-theme^="pixel"] .tab {
+  font-size: 0.5rem;
 }
 .tab:active {
   transform: scale(0.96);

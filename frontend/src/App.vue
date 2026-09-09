@@ -7,7 +7,9 @@ import AuthSheet from "./components/AuthSheet.vue";
 import Avatar from "./components/Avatar.vue";
 import BottomNav from "./components/BottomNav.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
+import Dashboard from "./components/Dashboard.vue";
 import ExportSheet from "./components/ExportSheet.vue";
+import HelpSheet from "./components/HelpSheet.vue";
 import SummaryForm from "./components/SummaryForm.vue";
 import SummaryList from "./components/SummaryList.vue";
 import SummaryView from "./components/SummaryView.vue";
@@ -20,21 +22,37 @@ import { isKind, SECTION_LIST, SECTIONS, type Kind } from "./lib/sections";
 
 const { success, error: toastError, toast } = useToast();
 const isDesktop = useMedia(DESKTOP_QUERY);
-const { user, isSignedIn, boot } = useAuth();
-const { theme, setTheme } = useTheme();
+const { user, boot } = useAuth();
+const { theme, icon: themeIcon, cycle: cycleTheme } = useTheme();
 
-/* ----------------------------------------------------------- sections */
+/* ----------------------------------------------------------- views & sections */
+type View = "dashboard" | "summaries";
+const VIEW_KEY = "summary-hub:view";
 const KIND_KEY = "summary-hub:kind";
-function loadKind(): Kind {
+const SEEN_HELP_KEY = "summary-hub:seen-help";
+
+const lsGet = (k: string) => {
   try {
-    const v = localStorage.getItem(KIND_KEY);
-    return isKind(v) ? v : "podcast";
+    return localStorage.getItem(k);
   } catch {
-    return "podcast";
+    return null;
   }
-}
-const kind = ref<Kind>(loadKind());
+};
+const lsSet = (k: string, v: string) => {
+  try {
+    localStorage.setItem(k, v);
+  } catch {
+    /* ignore */
+  }
+};
+
+const view = ref<View>(lsGet(VIEW_KEY) === "summaries" ? "summaries" : "dashboard");
+const kind = ref<Kind>(isKind(lsGet(KIND_KEY)) ? (lsGet(KIND_KEY) as Kind) : "podcast");
 const section = computed(() => SECTIONS[kind.value]);
+/** Bumped whenever data changes so the dashboard reloads its numbers. */
+const dataVersion = ref(0);
+
+watch(view, (v) => lsSet(VIEW_KEY, v));
 
 /* ----------------------------------------------------------- data */
 const guestId = ref("");
@@ -48,6 +66,8 @@ const submitting = ref(false);
 const providers = ref<ProviderInfo | null>(null);
 const exportOpen = ref(false);
 const accountOpen = ref(false);
+const helpOpen = ref(false);
+const helpFirstRun = ref(false);
 const authOpen = ref(false);
 const authMode = ref<"signin" | "signup">("signin");
 const confirmDelete = ref<string | null>(null);
@@ -70,18 +90,23 @@ async function refresh() {
   }
 }
 
-function switchKind(k: Kind) {
-  if (k === kind.value) return;
-  kind.value = k;
-  try {
-    localStorage.setItem(KIND_KEY, k);
-  } catch {
-    /* ignore */
-  }
-  selectedId.value = null;
+function goHome() {
+  view.value = "dashboard";
   mode.value = "view";
-  pane.value = "list";
-  refresh();
+  dataVersion.value++;
+}
+
+function switchKind(k: Kind, opts: { keepSelection?: boolean } = {}) {
+  const changed = k !== kind.value;
+  kind.value = k;
+  lsSet(KIND_KEY, k);
+  view.value = "summaries";
+  if (changed || !opts.keepSelection) {
+    selectedId.value = null;
+    mode.value = "view";
+    pane.value = "list";
+  }
+  if (changed || items.value.length === 0) refresh();
 }
 
 function select(id: string) {
@@ -90,7 +115,9 @@ function select(id: string) {
   pane.value = "detail";
 }
 
-function startNew() {
+function startNew(k?: Kind) {
+  if (k && k !== kind.value) switchKind(k);
+  view.value = "summaries";
   selectedId.value = null;
   mode.value = "create";
   pane.value = "detail";
@@ -110,6 +137,18 @@ function back() {
   mode.value = "view";
 }
 
+/** From the dashboard: jump straight to a summary in its section. */
+async function openFromDashboard(item: Summary) {
+  if (item.kind !== kind.value) {
+    kind.value = item.kind;
+    lsSet(KIND_KEY, item.kind);
+    await refresh();
+  }
+  view.value = "summaries";
+  if (!items.value.some((s) => s.id === item.id)) items.value = [item, ...items.value];
+  select(item.id);
+}
+
 async function onSubmit(input: SummaryInput) {
   submitting.value = true;
   try {
@@ -126,6 +165,7 @@ async function onSubmit(input: SummaryInput) {
     }
     mode.value = "view";
     pane.value = "detail";
+    dataVersion.value++;
   } catch (e) {
     toastError((e as Error).message);
   } finally {
@@ -145,6 +185,7 @@ async function doDelete() {
       pane.value = "list";
     }
     mode.value = "view";
+    dataVersion.value++;
     success("Summary deleted");
   } catch (e) {
     toastError((e as Error).message);
@@ -156,25 +197,40 @@ async function saveCover(p: { coverStyle: string; coverSeed: number }) {
   try {
     const updated = await api.patch(selected.value.id, p);
     items.value = items.value.map((s) => (s.id === updated.id ? updated : s));
+    dataVersion.value++;
     success("Cover saved");
   } catch (e) {
     toastError((e as Error).message);
   }
 }
 
-/* ----------------------------------------------------------- auth */
+/* ----------------------------------------------------------- auth & help */
 function openAuth(m: "signin" | "signup") {
   authMode.value = m;
   accountOpen.value = false;
   authOpen.value = true;
 }
 function onAuthDone() {
-  // Guest rows may have been claimed; reload the current section.
+  // Guest rows may have been claimed; reload everything.
   refresh();
+  dataVersion.value++;
 }
 function onExpired() {
   toast("Your session expired. Sign in again to sync.", "info");
   refresh();
+  dataVersion.value++;
+}
+function openHelp(firstRun = false) {
+  helpFirstRun.value = firstRun;
+  helpOpen.value = true;
+}
+function closeHelp() {
+  helpOpen.value = false;
+  lsSet(SEEN_HELP_KEY, "1");
+}
+function helpStart(k: Kind) {
+  closeHelp();
+  startNew(k);
 }
 
 /* ----------------------------------------------------------- nav */
@@ -199,6 +255,7 @@ onMounted(async () => {
     .providers()
     .then((p) => (providers.value = p))
     .catch(() => {});
+  if (!lsGet(SEEN_HELP_KEY)) openHelp(true);
 });
 onBeforeUnmount(() => {
   window.removeEventListener("popstate", onPop);
@@ -207,34 +264,43 @@ onBeforeUnmount(() => {
 
 const showList = computed(() => isDesktop.value || pane.value === "list");
 const showDetail = computed(() => isDesktop.value || pane.value === "detail");
-const quickTheme = () => setTheme(theme.value === "dark" ? "light" : theme.value === "light" ? "pixel" : theme.value === "pixel" ? "system" : "dark");
+const headerTitle = computed(() =>
+  view.value === "dashboard"
+    ? "Summary Hub"
+    : isDesktop.value
+      ? section.value.title
+      : section.value.label,
+);
+const headerIcon = computed(() => (view.value === "dashboard" ? "✨" : section.value.icon));
 </script>
 
 <template>
   <div class="app">
     <header class="header">
-      <div class="brand">
-        <span class="logo" aria-hidden="true">{{ section.icon }}</span>
-        <span class="title">{{ section.title }}</span>
-      </div>
+      <button class="brand" type="button" title="Dashboard" @click="goHome">
+        <span class="logo" aria-hidden="true">{{ headerIcon }}</span>
+        <span class="title">{{ headerTitle }}</span>
+      </button>
 
-      <nav v-if="isDesktop" class="seg sections" aria-label="Sections">
+      <nav v-if="isDesktop" class="seg sections" aria-label="Main">
+        <button type="button" :class="{ on: view === 'dashboard' }" @click="goHome">🏠 Home</button>
         <button
           v-for="s in SECTION_LIST"
           :key="s.id"
           type="button"
-          :class="{ on: kind === s.id }"
-          @click="switchKind(s.id)"
+          :class="{ on: view === 'summaries' && kind === s.id }"
+          @click="switchKind(s.id, { keepSelection: true })"
         >
           {{ s.icon }} {{ s.label }}
         </button>
       </nav>
 
-      <button v-if="isDesktop" class="primary sm" @click="startNew">+ New</button>
-      <button class="icon ghost" :title="`Theme: ${theme}`" aria-label="Cycle theme" @click="quickTheme">
-        {{ theme === "dark" ? "🌙" : theme === "light" ? "☀️" : theme === "pixel" ? "👾" : "🖥️" }}
+      <button v-if="isDesktop && view === 'summaries'" class="primary sm" @click="startNew()">+ New</button>
+      <button class="icon ghost help-btn" title="How to use" aria-label="How to use" @click="openHelp(false)">❔</button>
+      <button class="icon ghost theme-btn" :title="`Theme: ${theme}`" aria-label="Cycle theme" @click="cycleTheme">
+        {{ themeIcon }}
       </button>
-      <button v-if="isDesktop || true" class="account-btn" :title="user ? `@${user.username}` : 'Account'" @click="accountOpen = true">
+      <button class="account-btn" :title="user ? `@${user.username}` : 'Account'" @click="accountOpen = true">
         <Avatar v-if="user" :style="user.avatarStyle" :seed="user.avatarSeed" :name="user.username" :size="32" />
         <span v-else class="guest">Sign in</span>
         <span v-if="user && isDesktop" class="uname">@{{ user.username }}</span>
@@ -242,7 +308,17 @@ const quickTheme = () => setTheme(theme.value === "dark" ? "light" : theme.value
     </header>
 
     <main class="main" :class="{ 'has-nav': !isDesktop }">
-      <div class="layout">
+      <Dashboard
+        v-if="view === 'dashboard'"
+        :user="user"
+        :refresh-key="dataVersion"
+        @open="openFromDashboard"
+        @new="startNew"
+        @help="openHelp(false)"
+        @account="accountOpen = true"
+      />
+
+      <div v-else class="layout">
         <div class="pane-list" :class="{ 'pane-hidden': !showList }">
           <SummaryList
             :items="items"
@@ -250,7 +326,7 @@ const quickTheme = () => setTheme(theme.value === "dark" ? "light" : theme.value
             :loading="loading"
             :section="section"
             @select="select"
-            @new="startNew"
+            @new="startNew()"
           />
         </div>
 
@@ -282,7 +358,10 @@ const quickTheme = () => setTheme(theme.value === "dark" ? "light" : theme.value
               <div class="empty-art" aria-hidden="true">{{ section.icon }}</div>
               <h2>{{ section.tagline }}</h2>
               <p class="muted">Pick a summary on the left, or start a new one.</p>
-              <button class="magic" @click="startNew">+ New {{ section.label.toLowerCase() }} summary</button>
+              <div class="row wrap" style="justify-content: center">
+                <button class="magic" @click="startNew()">+ New {{ section.label.toLowerCase() }} summary</button>
+                <button class="ghost" @click="openHelp(false)">❔ How it works</button>
+              </div>
             </section>
           </Transition>
         </div>
@@ -290,12 +369,24 @@ const quickTheme = () => setTheme(theme.value === "dark" ? "light" : theme.value
     </main>
 
     <Transition name="pop">
-      <button v-if="pane === 'list' && !loading && !isDesktop" class="fab magic" @click="startNew">
+      <button
+        v-if="view === 'summaries' && pane === 'list' && !loading && !isDesktop"
+        class="fab magic"
+        @click="startNew()"
+      >
         ✨ New
       </button>
     </Transition>
 
-    <BottomNav v-if="!isDesktop" :kind="kind" :user="user" @select="switchKind" @account="accountOpen = true" />
+    <BottomNav
+      v-if="!isDesktop"
+      :kind="kind"
+      :view="view"
+      :user="user"
+      @home="goHome"
+      @select="(k) => switchKind(k)"
+      @account="accountOpen = true"
+    />
 
     <ExportSheet
       :open="exportOpen"
@@ -315,6 +406,8 @@ const quickTheme = () => setTheme(theme.value === "dark" ? "light" : theme.value
 
     <AuthSheet :open="authOpen" :initial-mode="authMode" @close="authOpen = false" @done="onAuthDone" />
 
+    <HelpSheet :open="helpOpen" :first-run="helpFirstRun" @close="closeHelp" @start="helpStart" />
+
     <ConfirmDialog
       :open="confirmDelete !== null"
       title="Delete this summary?"
@@ -330,6 +423,10 @@ const quickTheme = () => setTheme(theme.value === "dark" ? "light" : theme.value
 </template>
 
 <style scoped>
+.brand {
+  all: unset;
+  cursor: pointer;
+}
 .sections {
   margin-inline: 0.5rem;
 }
@@ -337,11 +434,26 @@ const quickTheme = () => setTheme(theme.value === "dark" ? "light" : theme.value
   min-height: 40px;
   padding: 0.2rem 0.6rem 0.2rem 0.2rem;
   gap: 0.5rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 .account-btn .guest {
   padding-left: 0.5rem;
   font-size: 0.85rem;
+}
+/* Phones: the dashboard and account sheet already expose Help and Theme, so
+   free up header room for the brand. */
+@media (max-width: 839px) {
+  .help-btn,
+  .theme-btn {
+    display: none;
+  }
+  .account-btn {
+    padding-right: 0.5rem;
+  }
+  :root[data-theme^="pixel"] .account-btn .guest {
+    font-size: 0.5rem;
+    padding-left: 0.4rem;
+  }
 }
 .account-btn .uname {
   font-size: 0.85rem;
@@ -366,14 +478,14 @@ const quickTheme = () => setTheme(theme.value === "dark" ? "light" : theme.value
   height: 80px;
   display: grid;
   place-items: center;
-  border-radius: 26px;
+  border-radius: var(--radius-l);
   background: var(--brand-soft);
 }
 .empty h2 {
   font-weight: 800;
   font-size: 1.2rem;
 }
-.empty button {
+.empty .row {
   margin-top: 0.5rem;
 }
 </style>

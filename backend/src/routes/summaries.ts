@@ -20,6 +20,30 @@ summariesRouter.get("/", async (req, res) => {
   res.json({ items });
 });
 
+/** Dashboard numbers for the caller. Cheap: computed from their own rows. */
+summariesRouter.get("/stats", async (req, res) => {
+  const items = await listSummaries(req.userId);
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const tagCounts = new Map<string, number>();
+  for (const s of items) for (const t of s.tags) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
+  const byKind: Record<string, number> = { podcast: 0, food: 0 };
+  for (const s of items) byKind[s.kind] = (byKind[s.kind] ?? 0) + 1;
+  res.json({
+    total: items.length,
+    byKind,
+    aiCount: items.filter((s) => !!s.aiSummary).length,
+    withCover: items.filter((s) => !!s.coverPrompt).length,
+    thisWeek: items.filter((s) => new Date(s.createdAt).getTime() > weekAgo).length,
+    takeaways: items.reduce((n, s) => n + s.takeaways.length, 0),
+    tags: [...tagCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([tag, count]) => ({ tag, count })),
+    recent: items.slice(0, 6),
+    lastUpdated: items[0]?.updatedAt ?? null,
+  });
+});
+
 summariesRouter.get("/:id", async (req, res) => {
   const item = await getSummary(req.userId, req.params.id);
   if (!item) {
