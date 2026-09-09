@@ -37,12 +37,17 @@ guest summaries are moved into the account. Signed-in requests use
   providers. No key at all? Images still work; text needs one free key (or
   demo mode).
 
+Want to put this live at no cost? See **[DEPLOYMENT.md](DEPLOYMENT.md)** for
+a step-by-step guide to Neon (database) + Render (backend) + Vercel
+(frontend) — $0/month, no credit card.
+
 ## Table of contents
 
 - [Stack](#stack)
 - [Project layout](#project-layout)
 - [Prerequisites](#prerequisites)
 - [Quick start](#quick-start)
+- [Deploying for free](#deploying-for-free)
 - [AI providers (all free)](#ai-providers-all-free)
 - [Auth, accounts & themes](#auth-accounts--themes)
 - [Daily development workflow](#daily-development-workflow)
@@ -245,6 +250,16 @@ nc -zv localhost 5432
 > **Switching back to in-memory mode later** is just setting
 > `STORAGE=memory` in `backend/.env` (or clearing `DATABASE_URL`) and
 > restarting the backend — no code changes needed.
+
+## Deploying for free
+
+Everything above is local dev. To put the app on the public internet at
+$0/month — Neon for Postgres, Render for the backend, Vercel for the
+frontend, plus optional free email and AI keys — see
+**[DEPLOYMENT.md](DEPLOYMENT.md)**. It covers exact host settings, the env
+vars each service needs, a required one-line fix for a devDependency
+deploy-blocker, a single-service alternative, and deployment-specific
+troubleshooting.
 
 ## AI providers (all free)
 
