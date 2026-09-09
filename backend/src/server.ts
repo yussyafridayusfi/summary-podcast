@@ -3,17 +3,21 @@ import cors from "cors";
 import express from "express";
 import morgan from "morgan";
 import { summariesRouter } from "./routes/summaries.ts";
+import { aiRouter } from "./routes/ai.ts";
+import { authRouter } from "./routes/auth.ts";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
 
 app.use(cors({ origin: true, exposedHeaders: ["x-user-id"] }));
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "2mb" }));
 app.use(morgan("dev"));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/api/summaries", summariesRouter);
+app.use("/api/ai", aiRouter);
+app.use("/api/auth", authRouter);
 
 app.use(
   (
