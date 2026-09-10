@@ -39,7 +39,10 @@ guest summaries are moved into the account. Signed-in requests use
 
 Want to put this live at no cost? See **[DEPLOYMENT.md](DEPLOYMENT.md)** for
 a step-by-step guide to Neon (database) + Render (backend) + Vercel
-(frontend) — $0/month, no credit card.
+(frontend) — $0/month, no credit card. Or take the one-click path:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/yussyafridayusfi/summary-podcast)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyussyafridayusfi%2Fsummary-podcast&root-directory=frontend&project-name=summary-hub)
 
 ## Table of contents
 

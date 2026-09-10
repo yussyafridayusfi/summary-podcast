@@ -5,8 +5,31 @@ the Vue/Vite frontend — on hosts with a genuinely free tier (no credit card,
 no trial-then-bill surprise). Total cost: **$0/month**, forever, for
 personal/demo traffic.
 
+## One-click path
+
+The repo ships the config both hosts need, so the manual steps below shrink
+to: create a Neon database, press two buttons, paste one connection string.
+
+| Step | Action |
+| ---- | ------ |
+| 1 | Create a free Neon project at [neon.tech](https://neon.tech) and copy its connection string (keep `?sslmode=require`). Run `cd backend && DATABASE_URL="<that string>" npm run db:migrate` once from your machine. |
+| 2 | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/yussyafridayusfi/summary-podcast) — Render reads [`render.yaml`](render.yaml), creates the free API service, and prompts for `DATABASE_URL` (paste Neon's) plus the optional keys. Leave optional ones blank. Note the URL it gives you. |
+| 3 | If the Render URL is **not** exactly `https://summary-hub-api.onrender.com`, edit the `destination` in [`frontend/vercel.json`](frontend/vercel.json) to match and push. |
+| 4 | [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyussyafridayusfi%2Fsummary-podcast&root-directory=frontend&project-name=summary-hub) — Vercel builds `frontend/` and applies the `/api/*` rewrite from `vercel.json`. Open the URL it gives you. |
+
+Both buttons deploy the repository's **default branch (`main`)**. If your
+work is still on a feature branch, merge it first (or change `branch:` in
+`render.yaml` and pick the branch in Vercel's import screen).
+
+The blueprint sets `NODE_ENV=production`, which hides the dev sign-in-code
+hint — correct for a public URL, since otherwise anyone could sign in as any
+email. Until you add SMTP (Step 4 below), sign-in codes are only visible in
+Render's **Logs** tab. Everything else (guest mode, AI demo/real, export)
+works immediately.
+
 ## Table of contents
 
+- [One-click path](#one-click-path)
 - [The free stack](#the-free-stack)
 - [Two ways to wire frontend ↔ backend](#two-ways-to-wire-frontend--backend)
 - [Before you start: a required fix](#before-you-start-a-required-fix)
@@ -116,6 +139,10 @@ continuing.
 
 ## Step 2 — Backend on Render
 
+Fastest: use the **Deploy to Render** button in [One-click path](#one-click-path);
+it applies the settings below from [`render.yaml`](render.yaml). To do it
+by hand instead:
+
 1. Push this repo to GitHub (already done if you're working from
    `feature/auth-sections-themes` or `main`).
 2. In the [Render dashboard](https://dashboard.render.com), **New → Web
@@ -175,24 +202,13 @@ for your use case.
    | Build Command       | `npm run build` (auto-detected) |
    | Output Directory    | `dist` (auto-detected) |
 
-3. Add a `vercel.json` in `frontend/` so `/api/*` transparently proxies to
-   your Render backend (replace the URL with yours from step 2):
-
-   ```json
-   {
-     "rewrites": [
-       {
-         "source": "/api/:path*",
-         "destination": "https://summary-hub-api.onrender.com/api/:path*"
-       }
-     ]
-   }
-   ```
-
-   Commit this file and push — Vercel picks it up on the next deploy. No
-   frontend code changes needed; `fetch('/api/...')` now transparently
-   reaches Render through Vercel's edge, same-origin from the browser's
-   point of view.
+3. [`frontend/vercel.json`](frontend/vercel.json) already ships in the
+   repo and proxies `/api/*` to `https://summary-hub-api.onrender.com`. If
+   Render gave your service a different URL, change the `destination`
+   there, commit and push — Vercel picks it up on the next deploy. No
+   frontend code changes needed; `fetch('/api/...')` transparently reaches
+   Render through Vercel's edge, same-origin from the browser's point of
+   view.
 
 4. Deploy. Open the Vercel URL — the app should load, the dashboard should
    show "You're a guest," and creating a summary should work end to end
